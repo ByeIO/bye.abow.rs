@@ -1,0 +1,33 @@
+[package]
+name = "bye_abow_rs"
+version = "0.1.0"
+edition = "2021"
+# license-file = "LICENSE"
+license = "MIT"
+authors = ["qsbye","Alex Maiorella"]
+description = "Visual bag of words for fast image matching without opencv."
+homepage = "https://docs.rs/bye_abow_rs"
+documentation = "https://docs.rs/bye_abow_rs"
+repository = "https://github.com/ByeIO/bye.abow.rs"
+keywords = ["slam", "bag-of-words", "visual-odometry", "dbow", "loop-closure"]
+categories  = ["algorithms", "computer-vision", "mathematics", "science"]
+readme = "README.md"
+# 排除大文件(crates.io限制10MB以内)
+exclude = ["assets/test", "assets/train"]
+
+[dependencies]
+bincode = "1.3.3"
+bitvec = "1.0.1"
+bye_orb_rs = { path = "./static/bye_orb_rs" }
+rand = "0.9.0"
+
+# 包含Beta, Binomial, Cauchy, ChiSquared, Dirichlet, Exponential, FisherF, Gamma, Geometric, Hypergeometric, InverseGaussian, LogNormal, Normal, Pareto, PERT, Poisson, StudentT, Triangular 和 Weibull 算法
+rand_distr = "0.4.3"
+
+serde = { version = "1.0.217", features = ["derive"] }
+smallvec = { version = "1.13.2", features = ["serde"] }
+thiserror = "2.0.11"
+
+image = "0.25.5"
+imageproc = "0.25.0"
+
