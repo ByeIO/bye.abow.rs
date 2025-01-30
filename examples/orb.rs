@@ -24,8 +24,8 @@ use bye_orb_rs::{
 use std::time::Instant;
 
 fn main() {
-    let img1_path = "./assets/167.jpg";
-    let img2_path = "./assets/189.jpg";
+    let img1_path = "./assets/test/167.png";
+    let img2_path = "./assets/test/189.png";
 
     main_orb(img1_path, img2_path);
 }
@@ -84,8 +84,8 @@ fn main_orb(img1_path: &str, img2_path: &str) {
     }
 
     // 保存绘制结果
-    img1_rgb.save("all_matches.png").unwrap();
-    img2_rgb.save("all_matches2.png").unwrap();
+    img1_rgb.save("./result/all_matches.png").unwrap();
+    img2_rgb.save("./result/all_matches2.png").unwrap();
 
     // 绘制筛选后的匹配点
     let mut img1_rgb_good = img1.to_rgb8();
@@ -100,8 +100,8 @@ fn main_orb(img1_path: &str, img2_path: &str) {
     }
 
     // 保存绘制结果
-    img1_rgb_good.save("good_matches.png").unwrap();
-    img2_rgb_good.save("good_matches2.png").unwrap();
+    img1_rgb_good.save("./result/good_matches.png").unwrap();
+    img2_rgb_good.save("./result/good_matches2.png").unwrap();
 
     // 第五步: 创建并排放置的图像
     let (width1, height1) = img1_rgb.dimensions();
@@ -139,5 +139,5 @@ fn main_orb(img1_path: &str, img2_path: &str) {
     }
 
     // 保存并排放置的图像
-    combined_image.save("combined_matches.png").unwrap();
+    combined_image.save("./result/combined_matches.png").unwrap();
 }

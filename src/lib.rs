@@ -17,12 +17,20 @@ use thiserror::Error;
 use serde::{
     Deserialize, Serialize
 };
+use serde_yml::Error;
+use std::num::ParseIntError;
 
 /// vocabulary模块
 pub mod vocabulary;
 
+/// adaptor模块
+pub mod adaptor;
+
 /// keypoint模块
 pub mod keypoint;
+
+/// database模块
+pub mod database;
 
 /// 支持的描述符类型是256位数组
 pub type Desc = [u8; 32];
@@ -70,4 +78,22 @@ pub enum BowErr {
     #[error("Vocabulary Serialization Error")]
     Bincode(#[from] bincode::Error),
 
+    // yaml错误
+    #[error("YAML Serialization Error")]
+    Yaml(#[from] serde_yml::Error),
+
+    // 解析错误
+    #[error("Parse Error: {0}")]
+    ParseError(String),
+
+    // 整数解析错误
+    #[error("Parse Int Error: {0}")]
+    ParseInt(#[from] ParseIntError),
 }
+
+// // 实现 From<ParseIntError> 转换
+// impl From<ParseIntError> for BowErr {
+//     fn from(err: ParseIntError) -> Self {
+//         BowErr::ParseInt(err)
+//     }
+// }

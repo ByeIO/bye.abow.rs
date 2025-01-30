@@ -11,6 +11,7 @@
 #![allow(unused_must_use)]
 #![allow(non_snake_case)]
 #![allow(clippy::upper_case_acronyms)]
+#![allow(unreachable_patterns)]
 
 // 随机数
 use rand::{
@@ -23,14 +24,23 @@ use rand::prelude::{
     IndexedRandom, IteratorRandom, SliceRandom
 };
 
-
 // 序列化
 use serde::{Deserialize, Serialize};
 use smallvec::ToSmallVec;
 use bitvec::{order::Msb0, view::BitView};
+use serde_yml::{to_writer, from_reader};
+
+// 压缩/解压
+use flate2::Compression;
+use flate2::write::GzEncoder;
+use flate2::read::GzDecoder;
 
 // 标准库
 use std::fmt;
+use std::fs::File;
+use std::io::{self, Write, Read};
+use std::path::Path;
+use std::collections::HashMap;
 
 // 内部库
 use crate::{
@@ -39,7 +49,7 @@ use crate::{
 };
 
 // Cluster元组
-enum ClusterInitMethod {
+pub enum ClusterInitMethod {
     Random,
     KMeansPP,
 }
@@ -47,11 +57,11 @@ enum ClusterInitMethod {
 /// 由图像特征集合构建的视觉词汇表。
 #[derive(Serialize, Deserialize, PartialEq, Clone, Default)]
 pub struct Vocabulary {
-    blocks: Vec<Block>,
-    k: usize,
-    levels: usize,
-    num_blocks: usize,
-    num_leaves: usize,
+    pub blocks: Vec<Block>,
+    pub k: usize,
+    pub levels: usize,
+    pub num_blocks: usize,
+    pub num_leaves: usize,
 }
 
 /// Vocabulary的实现第一部分(公开API)
@@ -115,24 +125,24 @@ impl Vocabulary {
 
 /// 表示词汇表中非叶子节点的单元
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-struct Block {
-    id: NodeId,
-    children: Children,
+pub struct Block {
+    pub id: NodeId,
+    pub children: Children,
 }
 
 /// 表示块的子节点的数据结构，可能是叶子节点，也可能不是
 #[derive(Serialize, Deserialize, PartialEq, Clone)]
-struct Children {
-    features: Vec<Desc>,
-    weights: Vec<f32>,
-    cluster_size: Vec<usize>,
-    ids: Vec<NodeId>,
+pub struct Children {
+    pub features: Vec<Desc>,
+    pub weights: Vec<f32>,
+    pub cluster_size: Vec<usize>,
+    pub ids: Vec<NodeId>,
 }
 
 /// 节点的唯一标识符。Leaf 变体存储其所有父节点的 id，
 /// 这相当于匹配该叶子的任何特征的 DirectIndex。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-enum NodeId {
+pub enum NodeId {
     Block(usize),
     Leaf(IdPath),
 }
@@ -141,7 +151,7 @@ enum NodeId {
 
 /// Vocabulary的实现第二部分(私有)
 impl Vocabulary {
-    fn transform_inner(&self, features: &[Desc], di: bool) -> BowResult<(BoW, DirectIdx)> {
+    pub fn transform_inner(&self, features: &[Desc], di: bool) -> BowResult<(BoW, DirectIdx)> {
         if features.is_empty() {
             return Err(BowErr::NoFeatures);
         }
@@ -163,7 +173,10 @@ impl Vocabulary {
                 }
                 match &block.children.ids[best_child.1] {
                     NodeId::Block(id) => {
-                        block = &self.blocks[*id];
+                        println!("当前 block id: {}, 最大 block 数: {}", *id, self.blocks.len());
+                        // FIXME: 使用 min 限制索引范围，防止越界
+                        let safe_id = (*id).min(self.blocks.len() - 1);
+                        block = &self.blocks[safe_id];
                     }
                     NodeId::Leaf(ids) => {
                         if di {
@@ -194,7 +207,7 @@ impl Vocabulary {
         Ok((bow, direct_idx))
     }
 
-    fn cluster(&mut self, features: &[Desc], parent_ids: Vec<usize>, curr_level: usize) {
+    pub fn cluster(&mut self, features: &[Desc], parent_ids: Vec<usize>, curr_level: usize) {
         // println!(
         //     "KMeans step with {} features. parents: {:?}, level {}",
         //     features.len(),
@@ -276,7 +289,7 @@ impl Vocabulary {
     }
 
     /// 为 k 均值聚类初始化聚类中心
-    fn initialize_clusters(&self, features: &[Desc], method: ClusterInitMethod) -> Vec<Desc> {
+    pub fn initialize_clusters(&self, features: &[Desc], method: ClusterInitMethod) -> Vec<Desc> {
         // 如果特征数量少于 k，则直接返回这些特征
         if features.len() <= self.k {
             return features.to_vec();
@@ -296,7 +309,7 @@ impl Vocabulary {
         }
     }
 
-    fn init_random(&self, features: &[Desc]) -> Vec<Desc> {
+    pub fn init_random(&self, features: &[Desc]) -> Vec<Desc> {
         let mut rng = rng();
         features
             .choose_multiple(&mut rng, self.k)
@@ -304,7 +317,7 @@ impl Vocabulary {
             .collect()
     }
 
-    fn init_kmeanspp(&self, features: &[Desc]) -> Vec<Desc> {
+    pub fn init_kmeanspp(&self, features: &[Desc]) -> Vec<Desc> {
         let mut rng = rng();
         let mut features = features.to_owned();
         let mut centroids = Vec::with_capacity(self.k);
@@ -331,7 +344,7 @@ impl Vocabulary {
 
     #[inline]
     /// 计算二进制数组（描述符）集合的均值。
-    fn desc_mean(descriptors: Vec<&Desc>) -> Desc {
+    pub fn desc_mean(descriptors: Vec<&Desc>) -> Desc {
         let n2 = descriptors.len() / 2;
         let mut counts = vec![0; std::mem::size_of::<Desc>() * 8];
         let mut result: Desc = [0; std::mem::size_of::<Desc>()];
@@ -352,7 +365,7 @@ impl Vocabulary {
     }
 
     /// 提供下一个 NodeId，可能是叶子/词，也可能是块。
-    fn next_node_id(&mut self, leaf: bool, parent_ids: &[usize]) -> NodeId {
+    pub fn next_node_id(&mut self, leaf: bool, parent_ids: &[usize]) -> NodeId {
         if leaf {
             // 叶子节点将存储其父节点的块 id，以便于后续获取直接索引
             let mut new_parent_ids = parent_ids[1..].to_smallvec(); // 去掉第一个父节点，它总是 0
@@ -364,7 +377,7 @@ impl Vocabulary {
             NodeId::Block(self.num_blocks)
         }
     }
-    fn empty(k: usize, l: usize) -> Self {
+    pub fn empty(k: usize, l: usize) -> Self {
         Self {
             blocks: Vec::new(),
             k,
@@ -378,16 +391,17 @@ impl Vocabulary {
 /* start 辅助函数 */
 /// 计算两个二进制数组（描述符）之间的汉明距离。
 #[inline]
-fn hamming(x: &[u8], y: &[u8]) -> u8 {
+pub fn hamming(x: &[u8], y: &[u8]) -> u8 {
     x.iter()
         .zip(y)
         .fold(0, |a, (b, c)| a + (*b ^ *c).count_ones() as u8)
 }
 
 impl NodeId {
-    fn get_bid(&self) -> usize {
+    pub fn get_bid(&self) -> usize {
         match self {
             NodeId::Block(i) => *i,
+            NodeId::Leaf(ids) => *ids.last().unwrap(), // 返回叶子节点的最后一个 ID
             NodeId::Leaf(_) => unreachable!(),
         }
     }
